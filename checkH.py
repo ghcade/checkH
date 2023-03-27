@@ -70,6 +70,8 @@ sec_headers = {
 
 information_headers = {
     'X-Powered-By',
+    'X-AspNet-Version',
+    'X-AspNetMvc-Version',
     'Server'
 }
 
