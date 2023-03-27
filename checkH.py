@@ -87,7 +87,7 @@ headers = {}
 def banner():
     log("")
     log("======================================================")
-    log(" Check security headers on a webserver")
+    log("Check security headers on a webserver")
     log("======================================================")
     log("")
 
