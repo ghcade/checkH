@@ -10,7 +10,7 @@ import ssl
 import os
 import json
 from optparse import OptionParser
-
+import time
 
 class darkcolours:
     HEADER = '\033[95m'
@@ -87,6 +87,8 @@ headers = {}
 
 
 def banner():
+    now_time = time.strftime(r"%Y-%m-%d %H:%M", time.localtime())
+    log("Starting the Scan at {} CST".format(now_time))
     log("")
     log("======================================================")
     log("Check security headers on a webserver")
@@ -310,7 +312,7 @@ def main(options, targets):
                 # Hide deprecated
                 if not show_deprecated and sec_headers.get(safeh) == "deprecated":
                     unsafe -= 1
-                    json_results["missing"].remove(safeh)            
+                    json_results["missing"].remove(safeh)
                     continue
                 log('[!] Missing security header: {}'.format(
                     colorize(safeh, sec_headers.get(safeh))))
