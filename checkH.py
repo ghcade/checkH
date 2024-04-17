@@ -9,8 +9,9 @@ import sys
 import ssl
 import os
 import json
-from optparse import OptionParser
 import time
+from optparse import OptionParser
+
 
 class darkcolours:
     HEADER = '\033[95m'
@@ -54,25 +55,25 @@ client_headers = {
 
 # Security headers that should be enabled
 sec_headers = {
-    'X-XSS-Protection': 'deprecated',
+    #'X-XSS-Protection': 'deprecated',
     'X-Frame-Options': 'warning',
     'X-Content-Type-Options': 'warning',
     'Strict-Transport-Security': 'error',
     'Content-Security-Policy': 'warning',
-    'X-Permitted-Cross-Domain-Policies': 'deprecated',
+    #'X-Permitted-Cross-Domain-Policies': 'deprecated',
     'Referrer-Policy': 'warning',
-#    'Expect-CT': 'warning',
+    #'Expect-CT': 'deprecated',
     'Permissions-Policy': 'warning'
-#    'Cross-Origin-Embedder-Policy': 'warning',
-#    'Cross-Origin-Resource-Policy': 'warning',
-#    'Cross-Origin-Opener-Policy': 'warning'
+    #'Cross-Origin-Embedder-Policy': 'warning',
+    #'Cross-Origin-Resource-Policy': 'warning',
+    #'Cross-Origin-Opener-Policy': 'warning'
 }
 
 information_headers = {
     'X-Powered-By',
+    'Server',
     'X-AspNet-Version',
-    'X-AspNetMvc-Version',
-    'Server'
+    'X-AspNetMvc-Version'
 }
 
 cache_headers = {
@@ -156,16 +157,19 @@ def print_error(target, e):
     if isinstance(e, ValueError):
         print("Unknown url type")
 
-    if isinstance(e, urllib.error.HTTPError):
+    elif isinstance(e, urllib.error.HTTPError):
         print("[!] URL Returned an HTTP error: {}".format(
               colorize(str(e.code), 'error')))
 
-    if isinstance(e, urllib.error.URLError):
+    elif isinstance(e, urllib.error.URLError):
         if "CERTIFICATE_VERIFY_FAILED" in str(e.reason):
             print("SSL: Certificate validation error.\nIf you want to \
     ignore it run the program with the \"-d\" option.")
         else:
             print("Target host {} seems to be unreachable ({})".format(target, e.reason))
+
+    else:
+        print("{}".format(str(e)))
 
 
 def check_target(target, options):
@@ -196,7 +200,10 @@ def check_target(target, options):
         print("Unknown protocol: {}. Are you using a proxy? Try disabling it".format(e))
     except Exception as e:
         print_error(target, e)
-        return None
+        if hasattr(e, 'code') and e.code >= 400 and e.code < 500:
+            response = e
+        else:
+            return None
 
     if response is not None:
         return response
@@ -268,6 +275,8 @@ def main(options, targets):
         safe = 0
         unsafe = 0
 
+        log("[*] Analyzing headers of {}".format(colorize(target, 'info')))
+
         # Check if target is valid
         response = check_target(target, options)
         if not response:
@@ -275,7 +284,6 @@ def main(options, targets):
         rUrl = response.geturl()
         json_results = {}
 
-        log("[*] Analyzing headers of {}".format(colorize(target, 'info')))
         log("[*] Effective URL: {}".format(colorize(rUrl, 'info')))
         parse_headers(response.getheaders())
         json_headers[f"{rUrl}"] = json_results
@@ -296,6 +304,18 @@ def main(options, targets):
                             colorize(safeh, 'ok'),
                             colorize(headers.get(lsafeh), 'warning')))
 
+                # unsafe-url policy is more insecure compared to the default/unset value
+                elif safeh == 'Referrer-Policy' and headers.get(lsafeh) == 'unsafe-url':
+                    log("[!] Insecure header {} is set! (Value: {})".format(
+                            colorize(safeh, 'warning'),
+                            colorize(headers.get(lsafeh), 'error')))
+
+                # check for max-age=0 in HSTS
+                elif safeh == 'Strict-Transport-Security' and "max-age=0" in headers.get(lsafeh):
+                    log("[!] Insecure header {} is set! (Value: {})".format(
+                            colorize(safeh, 'warning'),
+                            colorize(headers.get(lsafeh), 'error')))
+
                 # Printing generic message if not specified above
                 else:
                     log("[*] Header {} is present! (Value: {})".format(
@@ -312,7 +332,7 @@ def main(options, targets):
                 # Hide deprecated
                 if not show_deprecated and sec_headers.get(safeh) == "deprecated":
                     unsafe -= 1
-                    json_results["missing"].remove(safeh)
+                    json_results["missing"].remove(safeh)            
                     continue
                 log('[!] Missing security header: {}'.format(
                     colorize(safeh, sec_headers.get(safeh))))
@@ -343,7 +363,7 @@ header {} is present! (Value: {})".format(
                     json_headers["caching"][cacheh] = headers.get(lcacheh)
                     c_chk = True
                     log("[!] Cache control header {} is present! \
-Value: {})".format(
+(Value: {})".format(
                             colorize(cacheh, 'info'),
                             headers.get(lcacheh)))
             if not c_chk:
